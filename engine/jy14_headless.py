@@ -12,7 +12,7 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import platform
 import re
 import shutil
@@ -185,7 +185,7 @@ def validate_plan(plan):
                 allowed |= {'scale', 'x', 'y', 'rotation', 'opacity', 'mask', 'transition_out'}
             elif kind == 'text':
                 allowed = {'start_us', 'duration_us', 'text', 'size', 'x', 'y', 'color', 'border_color', 'border_width',
-                           'keyframes', 'opacity', 'text_effect', 'font_path'}
+                           'keyframes', 'opacity', 'text_effect', 'font_path', 'bold'}
             elif kind in {'filter', 'effect'}:
                 allowed = {'start_us', 'duration_us', 'name', 'strength' if kind == 'filter' else 'params'}
             keys(seg, allowed, 'Segment')
@@ -201,6 +201,8 @@ def validate_plan(plan):
             if kind == 'text':
                 require(isinstance(seg.get('text'), str) and seg['text'].strip(), 'Text must be nonempty')
                 number(seg.get('size', 6), 'Text size', 1, 100)
+                if 'bold' in seg:
+                    require(type(seg['bold']) is bool, 'Text bold must be a boolean')
                 number(seg.get('border_width', .05), 'Border width', 0, 1)
                 for field in ('color', 'border_color'):
                     require(re.fullmatch(r'#[0-9a-fA-F]{6}', seg.get(field, '#FFFFFF')), 'Use #RRGGBB colors')
@@ -252,6 +254,8 @@ def text_material(material, seg):
     for style in content['styles']:
         style['range'] = [0, length]
         style['size'] = size
+        if 'bold' in seg:
+            style['bold'] = seg['bold']
         style['fill']['content']['solid']['color'] = rgb(color)
         for stroke in style.get('strokes', []):
             stroke['width'] = width
@@ -366,12 +370,38 @@ def files_manifest(folder):
     return result
 
 
-def build(plan_path, out):
+def standard_unc(value):
+    """Accept server/share paths, never local Windows device namespaces."""
+    value = str(value)
+    if any(ord(c) < 32 for c in value):
+        return False
+    drive = PureWindowsPath(value).drive
+    return re.fullmatch(r'\\\\(?![?.]\\)[^\\/:*?"<>|]+\\[^\\/:*?"<>|]+', drive) is not None
+
+
+def build_target(plan, detached_root=None):
+    """Bind a detached Windows NAS copy without touching the home index."""
+    if detached_root is None:
+        return nd.DRAFT_ROOT / plan['name'], nd.DRAFT_ROOT
+    require(nd.IS_WINDOWS, 'Detached NAS handoff is Windows-only')
+    raw = Path(detached_root)
+    require(raw.is_absolute() and standard_unc(raw), 'Detached root must be an absolute UNC directory')
+    root = raw.resolve(strict=True)
+    require(standard_unc(root), 'Resolved detached root must remain a standard UNC directory')
+    require(root.is_dir() and not root.is_symlink(), 'Detached root must be an existing real directory')
+    require(root != nd.DRAFT_ROOT and not root.is_relative_to(nd.DRAFT_ROOT),
+            'Detached root must be outside the live draft library')
+    target = root / plan['name']
+    require(target.parent == root and not target.is_symlink(), 'Detached target must be a direct child')
+    return target, root
+
+
+def build(plan_path, out, detached_root=None):
     runtime = nd.doctor()
     plan = read_json(plan_path)
     assets, duration, font_assets = validate_plan(plan)
     bp = blueprint()
-    target = nd.DRAFT_ROOT / plan['name']
+    target, target_root = build_target(plan, detached_root)
     require(not target.exists(), 'Target already exists; choose a new draft name')
     out = nd.fresh_directory(out)
     folder = out / 'draft'
@@ -395,7 +425,7 @@ def build(plan_path, out):
     fonts.copy_assets(font_assets.values(), folder)
     timeline, reg = timeline_for(plan, assets, target, tid, bp, font_assets)
     metadata = deepcopy(bp['metadata'])
-    metadata.update(draft_id=did, draft_name=target.name, draft_fold_path=str(target), draft_root_path=str(nd.DRAFT_ROOT),
+    metadata.update(draft_id=did, draft_name=target.name, draft_fold_path=str(target), draft_root_path=str(target_root),
                     tm_draft_create=now, tm_draft_modified=now, tm_duration=duration,
                     draft_materials=[{'type': 0, 'value': [library_record(a, target, now) for a in assets.values()]}] +
                                     [{'type': t, 'value': []} for t in (1, 2, 3, 6, 7, 8)])
@@ -454,6 +484,10 @@ def build(plan_path, out):
               'plan_sha256': nd.digest(out / 'plan.json'),
               'files': files_manifest(folder), 'media_copy_policy': 'draft-owned-resources',
               'ui_preparation_used': False, 'live_written': False, 'native_ui_acceptance': 'pending'}
+    if detached_root is not None:
+        record['detached_root'] = str(target_root)
+        record['delivery_mode'] = 'preview'
+        record['formal_delivery_allowed'] = False
     write(out / 'build.json', record)
     verify_build(out)
     return {'status': 'built', 'build': str(out), 'name': target.name, 'duration_us': duration,
@@ -546,6 +580,8 @@ def verify_structure(timeline, metadata, plan, assets, target, allow_native_reso
                 for style in content['styles']:
                     require(style['range'] == [0, expected_length], 'Text style range changed')
                     require(abs(style['size'] - spec.get('size', 6)) < 1e-5, 'Text size changed')
+                    if 'bold' in spec:
+                        require(style.get('bold') is spec['bold'], 'Text bold changed')
                     if 'text_effect' in spec:
                         # Color and stroke are owned by the captured native effect,
                         # whose identity and per-style path were checked above.
@@ -591,7 +627,7 @@ def verify_build(out):
     require(nd.digest(out / 'plan.json') == record['plan_sha256'], 'Plan changed after build')
     require(files_manifest(out / 'draft') == record['files'], 'Built draft changed')
     plan = read_json(out / 'plan.json')
-    target = nd.DRAFT_ROOT / plan['name']
+    target, _ = build_target(plan, record.get('detached_root'))
     require(record['target'] == str(target), 'Build target is not the planned direct-child draft')
     h = nd.helper()
     timeline = h._decrypt_metadata_in_memory(out / 'draft' / nd.TIMELINE_FILE)
@@ -666,6 +702,7 @@ def publish(out, audit, resume=False, verify_build_fn=None, verify_live_fn=None)
     verify_live_fn = verify_live_fn or verify_live
     out = Path(out).resolve(strict=True)
     record = verify_build_fn(out)
+    require(not record.get('detached_root'), 'Detached NAS handoff cannot publish to the local home index')
     h = nd.helper()
     runtime = h._validate_runtime_environment()
     require(record.get('runtime_profile') == runtime['runtime_profile'],
@@ -860,6 +897,7 @@ def main():
     sub.add_parser('doctor')
     p = sub.add_parser('build')
     p.add_argument('--plan', required=True); p.add_argument('--out', required=True)
+    p.add_argument('--detached-root', help='Existing Windows UNC parent; bind a review copy without home registration')
     for name in ('publish', 'resume-publish'):
         p = sub.add_parser(name)
         p.add_argument('--build', required=True); p.add_argument('--audit', required=True)
@@ -877,7 +915,7 @@ def main():
     if args.command == 'doctor':
         blueprint(); result = nd.doctor()
     elif args.command == 'build':
-        result = build(args.plan, args.out)
+        result = build(args.plan, args.out, args.detached_root)
     elif args.command in ('publish', 'resume-publish'):
         result = publish(args.build, args.audit, resume=args.command == 'resume-publish')
     elif args.command == 'create':

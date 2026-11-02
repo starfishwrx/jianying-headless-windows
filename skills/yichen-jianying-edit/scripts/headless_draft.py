@@ -34,7 +34,7 @@ BACKEND = PROJECT_ROOT / 'engine'
 PINS = {
     'native_fonts.py': 'ddd7b4c1ecd55890bd645c14930f2c5f6687794691c2280daa32673e048da5e6',
     'runtime_profiles.py': 'f00f235d6bb577ba0124ed973698c7afe51eba05828d538308030902228c9c7d',
-    'jy14_headless.py': '8eee23740deb710a63b78444dc0693413070526a1924d3fa636ac566bca87271',
+    'jy14_headless.py': 'f02d5e45a313750aa54387b2d2dc9058fdd9175257ea898cc9fe1d0bd45277df',
     'native_motion.py': '5d743caaa38c921779166e5663d36f72a0c3fdb130a690ac3942a7adcf62d6c2',
     'native_effects.py': 'c46b2fc9221dd613f220564b752e532f8f3753dd5595aaffc24f41d5236e4e97',
     'native_resources.py': '9bddfbb1cd688cebd69ac49f9bbf63c242522d9666a2ef7b412fe097113f68f2',
