@@ -24,6 +24,19 @@ description: 在装有匹配版本剪映的 Apple Silicon Mac 上，无界面生
 
 ## 选择入口
 
+### Windows 脚本生产库（本地扩展）
+
+`engine/production_library.py` 提供 `build(plan_path, work, library_root)`、
+`inspect(root)`、`relocate(source, staging, target)` 与 `equivalent`。生产库需位于
+剪映首页库外，不登记首页、不控制桌面、不要求关闭编辑器；所有输出必须是新
+目录。调用方校验本入口的全部 PINS（含 Windows codec 桥），保留官方运行版本
+和 DLL 指纹。默认脚本在付费阶段前完成后端、字体与媒体工具预检。
+
+库输出带 `headless-production.json`，消费时验证当前原生六镜像、活动指针、
+精确时序、倍速材质和字体绑定；分发／归档通过同一原生 API 对新副本重绑定路径。
+标识与技术回读不授予视觉质量 PASS。正式交付由宿主的当前输入、运行时、草稿包
+和独立 QC 门禁控制。旧 `--detached-root` 仍仅作待审交接，不能登记首页。
+
 - 新建：读 [无界面计划与命令](references/headless-macos.md)。直接创建独立草稿，
   不要求先在 UI 里准备模板；在线模板不在此发行范围。
 - Hypit 工程交接：读 [素材与字体交接](references/hypit-handoff.md)，将选定成片的素材、时间线和

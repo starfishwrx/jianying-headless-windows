@@ -196,6 +196,8 @@ def _parse_strict_json(payload, label):
 
 
 def _snapshot_file(path, label, max_bytes=256 * 1024 * 1024):
+    if Path(path).is_symlink():
+        raise ApplyError(label + " 必须是普通文件")
     path = Path(path).resolve(strict=True)
     if path.is_symlink() or not path.is_file():
         raise ApplyError(label + " 必须是普通文件")

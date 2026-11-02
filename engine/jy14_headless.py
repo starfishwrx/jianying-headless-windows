@@ -182,10 +182,10 @@ def validate_plan(plan):
             allowed = {'start_us', 'duration_us', 'source', 'source_start_us', 'source_duration_us', 'speed', 'volume'}
             allowed.add('keyframes')
             if kind == 'video':
-                allowed |= {'scale', 'x', 'y', 'rotation', 'opacity', 'mask', 'transition_out'}
+                allowed |= {'scale', 'x', 'y', 'rotation', 'opacity', 'mask', 'transition_out', 'brightness'}
             elif kind == 'text':
                 allowed = {'start_us', 'duration_us', 'text', 'size', 'x', 'y', 'color', 'border_color', 'border_width',
-                           'keyframes', 'opacity', 'text_effect', 'font_path', 'bold'}
+                           'keyframes', 'opacity', 'text_effect', 'font_path', 'bold', 'subtitle'}
             elif kind in {'filter', 'effect'}:
                 allowed = {'start_us', 'duration_us', 'name', 'strength' if kind == 'filter' else 'params'}
             keys(seg, allowed, 'Segment')
@@ -193,6 +193,10 @@ def validate_plan(plan):
             span = integer(seg.get('duration_us'), 'duration_us', 1)
             motion.validate(seg, kind)
             visual_effects.validate(seg, kind)
+            if 'brightness' in seg:
+                number(seg['brightness'], 'Brightness', -1, 1)
+            if 'subtitle' in seg:
+                require(type(seg['subtitle']) is bool, 'Subtitle must be a boolean')
             require(start >= prior_end, 'Segments on the same track must be ordered and nonoverlapping')
             if ti == 0 and kind == 'video':
                 require(abs(start - prior_end) <= 1, 'Main video must be continuous; place gaps on overlay tracks only')
@@ -262,6 +266,8 @@ def text_material(material, seg):
             stroke['content']['solid']['color'] = rgb(border)
     material.update(content=json.dumps(content, ensure_ascii=False, separators=(',', ':')),
                     font_size=size, text_color=color, border_color=border, border_width=width)
+    if seg.get('subtitle'):
+        material['type'] = 'subtitle'
 
 
 def timeline_for(plan, assets, target, tid, bp, font_assets=None):
@@ -340,6 +346,13 @@ def timeline_for(plan, assets, target, tid, bp, font_assets=None):
                            materialName=Path(asset['source']).name, rank=str(si + 1))
                 registrations[segment['id']] = reg
             motion.apply(segment, doc['materials'], spec, kind, target)
+            if kind == 'video' and spec.get('brightness'):
+                segment['enable_color_correct_adjust'] = True
+                segment.setdefault('common_keyframes', []).append({
+                    'id': identifier(), 'material_id': '', 'property_type': 'KFTypeBrightness',
+                    'keyframe_list': [{'id': identifier(), 'curveType': 'Line', 'graphID': '',
+                        'left_control': {'x': 0.0, 'y': 0.0}, 'right_control': {'x': 0.0, 'y': 0.0},
+                        'time_offset': 0, 'values': [spec['brightness']]}]})
             effects.apply(segment, doc['materials'], spec, target)
             visual_effects.apply_text(segment, doc['materials'], spec, target)
             newtrack['segments'].append(segment)
@@ -379,8 +392,18 @@ def standard_unc(value):
     return re.fullmatch(r'\\\\(?![?.]\\)[^\\/:*?"<>|]+\\[^\\/:*?"<>|]+', drive) is not None
 
 
-def build_target(plan, detached_root=None):
+def build_target(plan, detached_root=None, library_root=None):
     """Bind a detached Windows NAS copy without touching the home index."""
+    require(not (detached_root and library_root), 'Choose one output root')
+    if library_root is not None:
+        raw = Path(library_root)
+        require(raw.is_absolute() and raw.is_dir() and not raw.is_symlink(), 'Library root must exist and be absolute')
+        root = raw.resolve(strict=True)
+        require(root != nd.DRAFT_ROOT and not root.is_relative_to(nd.DRAFT_ROOT),
+                'Production library must be outside the live home index')
+        target = root / plan['name']
+        require(target.parent == root and not target.is_symlink(), 'Production target must be a direct child')
+        return target, root
     if detached_root is None:
         return nd.DRAFT_ROOT / plan['name'], nd.DRAFT_ROOT
     require(nd.IS_WINDOWS, 'Detached NAS handoff is Windows-only')
@@ -396,12 +419,12 @@ def build_target(plan, detached_root=None):
     return target, root
 
 
-def build(plan_path, out, detached_root=None):
+def build(plan_path, out, detached_root=None, library_root=None):
     runtime = nd.doctor()
     plan = read_json(plan_path)
     assets, duration, font_assets = validate_plan(plan)
     bp = blueprint()
-    target, target_root = build_target(plan, detached_root)
+    target, target_root = build_target(plan, detached_root, library_root)
     require(not target.exists(), 'Target already exists; choose a new draft name')
     out = nd.fresh_directory(out)
     folder = out / 'draft'
@@ -424,6 +447,7 @@ def build(plan_path, out, detached_root=None):
     native_resources = resources.prepare(plan, folder, runtime)
     fonts.copy_assets(font_assets.values(), folder)
     timeline, reg = timeline_for(plan, assets, target, tid, bp, font_assets)
+    timeline['name'] = target.name
     metadata = deepcopy(bp['metadata'])
     metadata.update(draft_id=did, draft_name=target.name, draft_fold_path=str(target), draft_root_path=str(target_root),
                     tm_draft_create=now, tm_draft_modified=now, tm_duration=duration,
@@ -488,6 +512,9 @@ def build(plan_path, out, detached_root=None):
         record['detached_root'] = str(target_root)
         record['delivery_mode'] = 'preview'
         record['formal_delivery_allowed'] = False
+    if library_root is not None:
+        record['library_root'] = str(target_root)
+        record['delivery_authority'] = 'caller-current-qc-required'
     write(out / 'build.json', record)
     verify_build(out)
     return {'status': 'built', 'build': str(out), 'name': target.name, 'duration_us': duration,
@@ -627,7 +654,7 @@ def verify_build(out):
     require(nd.digest(out / 'plan.json') == record['plan_sha256'], 'Plan changed after build')
     require(files_manifest(out / 'draft') == record['files'], 'Built draft changed')
     plan = read_json(out / 'plan.json')
-    target, _ = build_target(plan, record.get('detached_root'))
+    target, _ = build_target(plan, record.get('detached_root'), record.get('library_root'))
     require(record['target'] == str(target), 'Build target is not the planned direct-child draft')
     h = nd.helper()
     timeline = h._decrypt_metadata_in_memory(out / 'draft' / nd.TIMELINE_FILE)
@@ -702,7 +729,8 @@ def publish(out, audit, resume=False, verify_build_fn=None, verify_live_fn=None)
     verify_live_fn = verify_live_fn or verify_live
     out = Path(out).resolve(strict=True)
     record = verify_build_fn(out)
-    require(not record.get('detached_root'), 'Detached NAS handoff cannot publish to the local home index')
+    require(not record.get('detached_root') and not record.get('library_root'),
+            'Detached/production output cannot publish to the local home index')
     h = nd.helper()
     runtime = h._validate_runtime_environment()
     require(record.get('runtime_profile') == runtime['runtime_profile'],
