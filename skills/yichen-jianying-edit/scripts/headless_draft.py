@@ -33,10 +33,10 @@ PROJECT_ROOT = project_root()
 BACKEND = PROJECT_ROOT / 'engine'
 PINS = {
     '../bridge/windows_crypto.py': 'b5d036546a7fbd3089574ca7306ffe7c524c278aec8ae43bd6db1d7e26f6c111',
-    'production_library.py': 'bab67e0343b3bc6273c477d5ec87ab098cff7016e9c33608b49137f9619bd382',
+    'production_library.py': '2544f621b3eb8e060d036537def2a29b29d3d6ec677e31d6c981e21e887e3b10',
     'native_fonts.py': 'ddd7b4c1ecd55890bd645c14930f2c5f6687794691c2280daa32673e048da5e6',
     'runtime_profiles.py': 'f00f235d6bb577ba0124ed973698c7afe51eba05828d538308030902228c9c7d',
-    'jy14_headless.py': 'e84cf69614f2a0df3461331ed4bc9753773fd7a9cead65cc186237a07da5cdde',
+    'jy14_headless.py': '74c0566414025a740247017d54c0aec79e02cff14b815160fd26f74551394ef6',
     'native_motion.py': '5d743caaa38c921779166e5663d36f72a0c3fdb130a690ac3942a7adcf62d6c2',
     'native_effects.py': 'c46b2fc9221dd613f220564b752e532f8f3753dd5595aaffc24f41d5236e4e97',
     'native_resources.py': '9bddfbb1cd688cebd69ac49f9bbf63c242522d9666a2ef7b412fe097113f68f2',

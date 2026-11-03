@@ -14,6 +14,7 @@ from native_edit import write_owned
 
 MARKER = 'headless-production.json'
 SCHEMA = 'headless-production-library/v1'
+TEXT_LAYOUT_SCHEMA = 'centered-safe-subtitles/v1'
 
 
 def mirrors(root, tid):

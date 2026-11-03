@@ -185,7 +185,8 @@ def validate_plan(plan):
                 allowed |= {'scale', 'x', 'y', 'rotation', 'opacity', 'mask', 'transition_out', 'brightness'}
             elif kind == 'text':
                 allowed = {'start_us', 'duration_us', 'text', 'size', 'x', 'y', 'color', 'border_color', 'border_width',
-                           'keyframes', 'opacity', 'text_effect', 'font_path', 'bold', 'subtitle'}
+                           'keyframes', 'opacity', 'text_effect', 'font_path', 'bold', 'subtitle',
+                           'alignment', 'max_line_width'}
             elif kind in {'filter', 'effect'}:
                 allowed = {'start_us', 'duration_us', 'name', 'strength' if kind == 'filter' else 'params'}
             keys(seg, allowed, 'Segment')
@@ -207,6 +208,11 @@ def validate_plan(plan):
                 number(seg.get('size', 6), 'Text size', 1, 100)
                 if 'bold' in seg:
                     require(type(seg['bold']) is bool, 'Text bold must be a boolean')
+                if 'alignment' in seg:
+                    require(type(seg['alignment']) is int and seg['alignment'] in (0, 1, 2),
+                            'Text alignment must be 0, 1 or 2')
+                if 'max_line_width' in seg:
+                    number(seg['max_line_width'], 'Text max line width', .1, 1)
                 number(seg.get('border_width', .05), 'Border width', 0, 1)
                 for field in ('color', 'border_color'):
                     require(re.fullmatch(r'#[0-9a-fA-F]{6}', seg.get(field, '#FFFFFF')), 'Use #RRGGBB colors')
@@ -268,6 +274,11 @@ def text_material(material, seg):
                     font_size=size, text_color=color, border_color=border, border_width=width)
     if seg.get('subtitle'):
         material['type'] = 'subtitle'
+    if 'alignment' in seg or seg.get('subtitle'):
+        material['alignment'] = seg.get('alignment', 1)
+    if 'max_line_width' in seg or seg.get('subtitle'):
+        material['line_max_width'] = seg.get('max_line_width', .8)
+        material['force_apply_line_max_width'] = True
 
 
 def timeline_for(plan, assets, target, tid, bp, font_assets=None):
@@ -596,6 +607,11 @@ def verify_structure(timeline, metadata, plan, assets, target, allow_native_reso
                 if 'rotation' not in animated:
                     require(abs(clip.get('rotation', 0) - spec.get('rotation', 0)) < 1e-5, 'Rotation changed')
             if wanted['type'] == 'text':
+                if 'alignment' in spec:
+                    require(material.get('alignment') == spec['alignment'], 'Text alignment changed')
+                if 'max_line_width' in spec:
+                    require(material.get('line_max_width') == spec['max_line_width']
+                            and material.get('force_apply_line_max_width') is True, 'Text safe line width changed')
                 if 'font_path' in spec:
                     font_asset = font_index.get(str(Path(spec['font_path'])))
                     require(font_asset is not None, 'Planned font has no verified dependency')
