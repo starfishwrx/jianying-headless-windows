@@ -32,9 +32,11 @@ def project_root():
 PROJECT_ROOT = project_root()
 BACKEND = PROJECT_ROOT / 'engine'
 PINS = {
+    '../bridge/windows_crypto.py': 'b5d036546a7fbd3089574ca7306ffe7c524c278aec8ae43bd6db1d7e26f6c111',
+    'production_library.py': '2544f621b3eb8e060d036537def2a29b29d3d6ec677e31d6c981e21e887e3b10',
     'native_fonts.py': 'ddd7b4c1ecd55890bd645c14930f2c5f6687794691c2280daa32673e048da5e6',
     'runtime_profiles.py': 'f00f235d6bb577ba0124ed973698c7afe51eba05828d538308030902228c9c7d',
-    'jy14_headless.py': '8eee23740deb710a63b78444dc0693413070526a1924d3fa636ac566bca87271',
+    'jy14_headless.py': '74c0566414025a740247017d54c0aec79e02cff14b815160fd26f74551394ef6',
     'native_motion.py': '5d743caaa38c921779166e5663d36f72a0c3fdb130a690ac3942a7adcf62d6c2',
     'native_effects.py': 'c46b2fc9221dd613f220564b752e532f8f3753dd5595aaffc24f41d5236e4e97',
     'native_resources.py': '9bddfbb1cd688cebd69ac49f9bbf63c242522d9666a2ef7b412fe097113f68f2',
@@ -47,7 +49,7 @@ PINS = {
     'native_export.cpp': 'c60da6c65f5bb7ac733b8f5b619401be3921f9254b953a55903d4e7566156379',
     'native_export_windows.cpp': 'e6d65a3747357caae09123dc63a86d281f2da9a1fb6e560268b560a41a7e16fd',
     'headless_runtime.py': '93b749bde68c7dd7210b40dbe73b6071dfe3bf23e93f5dab6a51c067ce31fe43',
-    'windows_runtime.py': '20d6851a6e29d242443738e5b097256f19da2adbe733100730f1a276c3ea6bab',
+    'windows_runtime.py': 'c3cc9daa0d5e1d696afc64dbf7cf0d1bde6e95ee373449ffa904568323ffb577',
     'blueprint.json': '91f7eddad5bff9af23eb88b53713c180e3e3d4054edd469140cfa9aa56bc1dc9',
 }
 

@@ -91,6 +91,12 @@ python engine\native_export.py `
 
 ## 与原 macOS 版的差异
 
+### 显式 NAS 待审副本
+
+`build --plan PLAN --out NEW_BUILD --detached-root APPROVED_UNC_PARENT` 在独立构建中将新草稿绑定到已存在的 NAS 父目录，收集媒体及字体；构建不写 NAS、不更改本机首页。仅接受标准 server/share UNC，拒绝本地设备命名空间，解析后的路径仍须为真实 UNC。`verify-build` 核对该绑定；`publish`/`resume-publish` 拒绝这种 detached 构建，不能将其当成本机首页登记或正式验收完成。
+
+调用方获准复制待审稿后，须使用不覆盖的原子复制并在实际 NAS 副本中读取原生加密时间轴和媒体/字体字面路径。这个扩展不允许旧明文时间轴替代当前加密稿。计划文字可显式设置 `bold: true/false`，构建和回读均检查该参数；字号单位及字体视觉效果仍需实际验收。
+
 | 方面 | macOS | Windows |
 | --- | --- | --- |
 | 应用身份 | `Info.plist` + `libvideoeditor.dylib` SHA-256 | PE 版本资源 + `videoeditor.dll` SHA-256 |
